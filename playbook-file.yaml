@@ -1,0 +1,23 @@
+---
+- name: Detect broadcast storms in network
+  hosts: all
+  gather_facts: no
+
+  tasks:
+  - name: Check for high broadcast traffic
+    shell: "netstat -i | awk '{print $1, $9}' | grep -v '0.0.0.0'"
+    register: netstat_output
+
+  - name: Analyze output
+    set_fact:
+      high_broadcast_interfaces: "{{ netstat_output.stdout_lines |
+                                   json_query(query) }}"
+    vars:
+      query: "[?contains(split(' '), '>') && split(' ')[1] > threshold].interface"
+      threshold: 1000
+
+  - name: Alert on high broadcast traffic
+    debug:
+      msg: "High broadcast traffic detected on interface {{ item }}"
+    when: high_broadcast_interfaces | length > 0
+    with_items: "{{ high_broadcast_interfaces }}"
